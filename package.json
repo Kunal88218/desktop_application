@@ -5,7 +5,7 @@
   "main": "app.js",
   "scripts": {
     "start": "electron .",
-    "test": "node test/storage.test.js && node test/ipc.test.js && node test/smoke-check.js"
+    "test": "node test/storage.test.js && node test/ipc.test.js && node test/dialogs.test.js && node test/smoke-check.js"
   },
   "keywords": [
     "electron",

@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const electronPath = require('electron');
 
-console.log('[Test] Running Milestone 5 verification: Secure IPC Communication...');
+console.log('[Test] Running Milestone 6 verification: Native Desktop Integrations...');
 
 const child = spawn(electronPath, [path.join(__dirname, '..')], {
   env: { ...process.env, TEST_SMOKE: 'true' },

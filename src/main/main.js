@@ -1,6 +1,8 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./ipc');
+const { setupApplicationMenu } = require('./menu');
+const { exportTasksDialog, importTasksDialog } = require('./dialogs');
 
 // Global error handlers for main process
 process.on('uncaughtException', (error) => {
@@ -12,6 +14,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 let mainWindow = null;
+let quickAddWindow = null;
 
 function createMainWindow() {
   const preloadPath = path.resolve(__dirname, '../preload/preload.js');
@@ -81,9 +84,61 @@ function createMainWindow() {
   mainWindow.on('closed', () => {
     console.log('[Main Process] Primary window closed');
     mainWindow = null;
+    if (quickAddWindow && !quickAddWindow.isDestroyed()) {
+      quickAddWindow.close();
+    }
   });
 
   return mainWindow;
+}
+
+function createQuickAddWindow() {
+  if (quickAddWindow && !quickAddWindow.isDestroyed()) {
+    console.log('[Main Process] Quick Add window already exists; focusing existing window');
+    quickAddWindow.focus();
+    return quickAddWindow;
+  }
+
+  const preloadPath = path.resolve(__dirname, '../preload/preload.js');
+  console.log('[Main Process] Creating secondary Quick-Add window');
+
+  quickAddWindow = new BrowserWindow({
+    width: 520,
+    height: 480,
+    resizable: false,
+    title: 'Quick Add Task',
+    backgroundColor: '#1e293b',
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    modal: false,
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+
+  quickAddWindow.loadFile(path.resolve(__dirname, '../renderer/quick-add.html'));
+
+  quickAddWindow.once('ready-to-show', () => {
+    quickAddWindow.show();
+  });
+
+  quickAddWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  quickAddWindow.on('closed', () => {
+    console.log('[Main Process] Quick Add window closed');
+    quickAddWindow = null;
+  });
+
+  return quickAddWindow;
+}
+
+function closeQuickAddWindow() {
+  if (quickAddWindow && !quickAddWindow.isDestroyed()) {
+    quickAddWindow.close();
+  }
 }
 
 // Electron Application Lifecycle
@@ -91,8 +146,30 @@ app.whenReady().then(() => {
   console.log('[Main Process] Electron application ready');
   console.log(`[Main Process] Platform: ${process.platform} (${process.arch}) | Node: ${process.versions.node} | Electron: ${process.versions.electron}`);
 
-  // Register secure IPC handlers with origin and payload validation
-  registerIpcHandlers();
+  // Register secure IPC handlers
+  registerIpcHandlers({
+    getMainWindow: () => mainWindow,
+    openQuickAddWindow: createQuickAddWindow,
+    closeQuickAddWindow
+  });
+
+  // Setup Native Application Menu
+  setupApplicationMenu({
+    onQuickAdd: createQuickAddWindow,
+    onExport: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        exportTasksDialog(mainWindow);
+      }
+    },
+    onImport: async () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const res = await importTasksDialog(mainWindow);
+        if (res && res.success && res.tasks) {
+          mainWindow.webContents.send('tasks:sync', res.tasks);
+        }
+      }
+    }
+  });
 
   createMainWindow();
 

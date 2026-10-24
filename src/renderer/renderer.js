@@ -265,6 +265,11 @@
     task.completed = !task.completed;
     renderTasks();
     persistTasks();
+
+    if (task.completed && window.electronAPI && typeof window.electronAPI.sendNotification === 'function') {
+      window.electronAPI.sendNotification('Task Completed! 🎉', `Completed: "${task.title}"`);
+    }
+
     showToast(
       task.completed ? `Completed: "${task.title}"` : `Marked active: "${task.title}"`,
       task.completed ? 'success' : 'info'
@@ -396,6 +401,63 @@
       currentPriority = e.target.value;
       renderTasks();
     });
+
+    // Native Dialogs: Export & Import
+    const exportBtn = document.getElementById('export-tasks-btn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', async () => {
+        if (window.electronAPI && typeof window.electronAPI.exportTasks === 'function') {
+          exportBtn.disabled = true;
+          try {
+            const res = await window.electronAPI.exportTasks();
+            if (res && res.success) {
+              showToast(`Exported ${res.count} tasks successfully`, 'success');
+            } else if (res && !res.canceled) {
+              showToast(`Export failed: ${res.error || 'Unknown error'}`, 'danger');
+            }
+          } catch (err) {
+            console.error('Export error:', err);
+            showToast('Export failed', 'danger');
+          } finally {
+            exportBtn.disabled = false;
+          }
+        }
+      });
+    }
+
+    const importBtn = document.getElementById('import-tasks-btn');
+    if (importBtn) {
+      importBtn.addEventListener('click', async () => {
+        if (window.electronAPI && typeof window.electronAPI.importTasks === 'function') {
+          importBtn.disabled = true;
+          try {
+            const res = await window.electronAPI.importTasks();
+            if (res && res.success) {
+              tasks = res.tasks;
+              renderTasks();
+              showToast(`Imported ${res.importedCount} tasks (${res.totalCount} total)`, 'success');
+            } else if (res && !res.canceled) {
+              showToast(`Import error: ${res.error || 'Invalid file'}`, 'danger');
+            }
+          } catch (err) {
+            console.error('Import error:', err);
+            showToast('Import error', 'danger');
+          } finally {
+            importBtn.disabled = false;
+          }
+        }
+      });
+    }
+
+    // Secondary Quick Add Window
+    const quickWinBtn = document.getElementById('open-quick-window-btn');
+    if (quickWinBtn) {
+      quickWinBtn.addEventListener('click', () => {
+        if (window.electronAPI && typeof window.electronAPI.openQuickAdd === 'function') {
+          window.electronAPI.openQuickAdd();
+        }
+      });
+    }
 
     // Add Task Triggers
     openAddTaskBtn.addEventListener('click', openAddModal);
@@ -550,6 +612,18 @@
       } catch (err) {
         console.error('[Renderer] Error invoking loadTasks IPC:', err);
       }
+    }
+
+    // Subscribe to multi-window sync broadcasts (e.g. from Quick-Add or Import)
+    if (window.electronAPI && typeof window.electronAPI.onTasksSync === 'function') {
+      window.electronAPI.onTasksSync((syncedTasks) => {
+        if (Array.isArray(syncedTasks)) {
+          console.log(`[Renderer] Received tasks:sync update (${syncedTasks.length} tasks)`);
+          tasks = syncedTasks;
+          renderTasks();
+          showToast('Tasks synchronized from desktop integration', 'info');
+        }
+      });
     }
 
     renderTasks();
