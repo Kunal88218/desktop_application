@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const electronPath = require('electron');
 
-console.log('[Test] Running Milestone 3 verification: Task Management Interface...');
+console.log('[Test] Running Milestone 4 verification: Persistent Task Storage...');
 
 const child = spawn(electronPath, [path.join(__dirname, '..')], {
   env: { ...process.env, TEST_SMOKE: 'true' },

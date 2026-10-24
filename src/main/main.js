@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const storage = require('./storage');
 
 // Global error handlers for main process
 process.on('uncaughtException', (error) => {
@@ -101,6 +102,19 @@ app.whenReady().then(() => {
       electronVersion: process.versions.electron,
       isPackaged: app.isPackaged
     };
+  });
+
+  // Persistent Storage IPC Handlers
+  ipcMain.handle('tasks:load', async () => {
+    return await storage.loadTasks();
+  });
+
+  ipcMain.handle('tasks:save', async (event, tasks) => {
+    return await storage.saveTasks(tasks);
+  });
+
+  ipcMain.handle('tasks:get-path', () => {
+    return storage.getStorageFilePath();
   });
 
   createMainWindow();

@@ -1,46 +1,9 @@
 // Renderer Process Script: Productivity Dashboard & Task Management Interface
-// State resides in renderer memory for Milestone 3
+// Backed by persistent local storage in Electron's userData directory via secure IPC
 
 (() => {
-  // --- Initial Seed State ---
-  let tasks = [
-    {
-      id: 'task-1',
-      title: 'Review Electron Process Security Architecture',
-      description: 'Ensure contextIsolation, nodeIntegration: false, and preload sandboxing are verified.',
-      priority: 'high',
-      dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
-      completed: true,
-      createdAt: Date.now() - 3600000
-    },
-    {
-      id: 'task-2',
-      title: 'Design In-Class Presentation Slides',
-      description: 'Highlight IPC request-response pattern and multi-window orchestration.',
-      priority: 'medium',
-      dueDate: new Date(Date.now() + 172800000).toISOString().split('T')[0], // 2 days
-      completed: false,
-      createdAt: Date.now() - 1800000
-    },
-    {
-      id: 'task-3',
-      title: 'Conduct Automated Smoke Testing',
-      description: 'Verify application launches headlessly and cleanly on macOS and Windows.',
-      priority: 'high',
-      dueDate: new Date().toISOString().split('T')[0], // Today
-      completed: false,
-      createdAt: Date.now() - 900000
-    },
-    {
-      id: 'task-4',
-      title: 'Organize Local Project Documentation',
-      description: 'Prepare README and architecture flowcharts for grading evaluation.',
-      priority: 'low',
-      dueDate: '',
-      completed: false,
-      createdAt: Date.now()
-    }
-  ];
+  // --- In-Memory Working State (synced with persistent storage) ---
+  let tasks = [];
 
   let currentView = 'dashboard';
   let currentFilter = 'all'; // 'all' | 'active' | 'completed'
@@ -244,6 +207,22 @@
     });
   }
 
+  // --- Storage Persistence Helper ---
+  async function persistTasks() {
+    if (window.electronAPI && typeof window.electronAPI.saveTasks === 'function') {
+      try {
+        const result = await window.electronAPI.saveTasks(tasks);
+        if (!result || !result.success) {
+          console.error('[Storage Error] Failed to persist tasks:', result ? result.error : 'Unknown error');
+          showToast('Warning: Failed to save changes to disk', 'danger');
+        }
+      } catch (err) {
+        console.error('[Storage Error] Exception during saveTasks:', err);
+        showToast('Storage error', 'danger');
+      }
+    }
+  }
+
   // --- CRUD Operations ---
   function addTask(title, description, priority, dueDate) {
     const newTask = {
@@ -258,6 +237,7 @@
 
     tasks.unshift(newTask);
     renderTasks();
+    persistTasks();
     showToast(`Task created: "${newTask.title}"`, 'success');
   }
 
@@ -274,6 +254,7 @@
     };
 
     renderTasks();
+    persistTasks();
     showToast('Task updated successfully', 'success');
   }
 
@@ -283,6 +264,7 @@
 
     task.completed = !task.completed;
     renderTasks();
+    persistTasks();
     showToast(
       task.completed ? `Completed: "${task.title}"` : `Marked active: "${task.title}"`,
       task.completed ? 'success' : 'info'
@@ -295,6 +277,7 @@
 
     tasks = tasks.filter(t => t.id !== id);
     renderTasks();
+    persistTasks();
     showToast(`Deleted: "${task.title}"`, 'danger');
   }
 
@@ -468,6 +451,7 @@
     const badgeIsolation = document.getElementById('badge-isolation');
     const badgeNode = document.getElementById('badge-node');
     const badgeSandbox = document.getElementById('badge-sandbox');
+    const storagePathEl = document.getElementById('storage-path');
 
     try {
       if (window.electronAPI && typeof window.electronAPI.getAppInfo === 'function') {
@@ -484,8 +468,14 @@
           if (badgeNode) badgeNode.textContent = window.electronAPI.securityStatus.nodeIntegration ? 'Enabled' : 'Disabled';
           if (badgeSandbox) badgeSandbox.textContent = window.electronAPI.securityStatus.sandbox ? 'Enabled' : 'Disabled';
         }
+
+        if (typeof window.electronAPI.getStoragePath === 'function') {
+          const path = await window.electronAPI.getStoragePath();
+          if (storagePathEl) storagePathEl.textContent = path || 'userData/tasks.json';
+        }
       } else {
         if (statusEl) statusEl.textContent = 'Standalone Mode';
+        if (storagePathEl) storagePathEl.textContent = 'Local Session (IPC unavailable)';
       }
     } catch (err) {
       console.error('Preload diagnostic error:', err);
@@ -493,10 +483,32 @@
     }
   }
 
+  // --- Persistent Storage Initialization ---
+  async function initializeTaskStore() {
+    if (window.electronAPI && typeof window.electronAPI.loadTasks === 'function') {
+      try {
+        const res = await window.electronAPI.loadTasks();
+        if (res && res.success && Array.isArray(res.tasks)) {
+          tasks = res.tasks;
+          console.log(`[Renderer] Loaded ${tasks.length} persistent tasks from main process`);
+        } else {
+          console.warn('[Renderer] Storage load warning:', res ? res.error : 'No response');
+          if (res && Array.isArray(res.tasks)) {
+            tasks = res.tasks;
+          }
+        }
+      } catch (err) {
+        console.error('[Renderer] Error invoking loadTasks IPC:', err);
+      }
+    }
+
+    renderTasks();
+  }
+
   // --- Initialization ---
   document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
-    renderTasks();
+    initializeTaskStore();
     loadSystemArchitectureDiagnostics();
   });
 })();
