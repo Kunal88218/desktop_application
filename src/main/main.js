@@ -58,6 +58,12 @@ function createMainWindow() {
     console.error(`[Renderer Load Error] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
   });
 
+  mainWindow.webContents.on('console-message', (event) => {
+    if (event.level >= 3) {
+      console.error(`[Renderer Error] ${event.message}`);
+    }
+  });
+
   mainWindow.webContents.on('render-process-gone', (event, details) => {
     console.error(`[Renderer Process Gone] Reason: ${details.reason}, Exit Code: ${details.exitCode}`);
   });
