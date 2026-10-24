@@ -1,0 +1,21 @@
+{
+  "name": "desktop-productivity-manager",
+  "version": "1.0.0",
+  "description": "An Electron-based desktop productivity and task manager",
+  "main": "app.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/smoke-check.js"
+  },
+  "keywords": [
+    "electron",
+    "productivity",
+    "desktop",
+    "task-manager"
+  ],
+  "author": "Kunal88218",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^45.0.0"
+  }
+}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desktop Productivity Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1>Productivity Manager</h1>
+          <p class="subtitle">Personal Desktop Organizer</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="status-indicator"></span>
+        <span id="connection-status">Electron Initialized</span>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="welcome-card">
+        <h2>System Architecture Status</h2>
+        <p>The desktop application process architecture has been initialized with strict isolation.</p>
+        
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Application</span>
+            <span class="info-value" id="app-name">Loading...</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Version</span>
+            <span class="info-value" id="app-version">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Platform</span>
+            <span class="info-value" id="platform-name">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Electron Version</span>
+            <span class="info-value" id="electron-version">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Node Runtime</span>
+            <span class="info-value" id="node-version">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Context Isolation</span>
+            <span class="info-value status-badge badge-active">Enabled</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>Electron Desktop Productivity Manager</span>
+      <span class="milestone-tag">Milestone 1: Project Initialized</span>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
