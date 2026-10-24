@@ -2,5 +2,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Securely expose an isolated API to the renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
-  getAppInfo: () => ipcRenderer.invoke('app:get-info')
+  getAppInfo: () => ipcRenderer.invoke('app:get-info'),
+  securityStatus: {
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true
+  }
 });
