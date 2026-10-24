@@ -369,6 +369,95 @@ body {
   background-color: currentColor;
 }
 
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+}
+
+/* IPC Status Card */
+.ipc-status-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ipc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ipc-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ipc-status-badge {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.ipc-app-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ipc-app-version {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ipc-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ipc-latency-pill {
+  font-size: 12px;
+  color: var(--text-muted);
+  background-color: var(--bg-base);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.ipc-latency-pill strong {
+  color: #60a5fa;
+}
+
+.ipc-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid rgba(51, 65, 85, 0.5);
+  padding-top: 8px;
+}
+
+.ipc-meta-item strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 /* Metrics Grid */
 .metrics-grid {
   display: grid;

@@ -453,6 +453,13 @@
     const badgeSandbox = document.getElementById('badge-sandbox');
     const storagePathEl = document.getElementById('storage-path');
 
+    // Dashboard IPC widget elements
+    const dashAppNameEl = document.getElementById('dash-app-name');
+    const dashAppVersionEl = document.getElementById('dash-app-version');
+    const dashPlatformEl = document.getElementById('dash-platform');
+    const dashElectronEl = document.getElementById('dash-electron');
+    const dashNodeEl = document.getElementById('dash-node');
+
     try {
       if (window.electronAPI && typeof window.electronAPI.getAppInfo === 'function') {
         const info = await window.electronAPI.getAppInfo();
@@ -462,6 +469,13 @@
         if (electronVersionEl) electronVersionEl.textContent = `v${info.electronVersion}`;
         if (nodeVersionEl) nodeVersionEl.textContent = `v${info.nodeVersion}`;
         if (statusEl) statusEl.textContent = 'Bridge Connected';
+
+        // Populate Dashboard IPC widget
+        if (dashAppNameEl) dashAppNameEl.textContent = info.name;
+        if (dashAppVersionEl) dashAppVersionEl.textContent = `v${info.version}`;
+        if (dashPlatformEl) dashPlatformEl.textContent = `${info.platform} (${info.arch || 'unknown'})`;
+        if (dashElectronEl) dashElectronEl.textContent = `v${info.electronVersion}`;
+        if (dashNodeEl) dashNodeEl.textContent = `v${info.nodeVersion}`;
 
         if (window.electronAPI.securityStatus) {
           if (badgeIsolation) badgeIsolation.textContent = window.electronAPI.securityStatus.contextIsolation ? 'Enabled' : 'Disabled';
@@ -480,6 +494,42 @@
     } catch (err) {
       console.error('Preload diagnostic error:', err);
       if (statusEl) statusEl.textContent = 'Bridge Error';
+    }
+  }
+
+  // --- Diagnostic IPC Ping Handler ---
+  function setupIpcPingHandler() {
+    const testIpcBtn = document.getElementById('test-ipc-btn');
+    const latencyValEl = document.getElementById('ipc-latency-val');
+
+    if (testIpcBtn) {
+      testIpcBtn.addEventListener('click', async () => {
+        if (window.electronAPI && typeof window.electronAPI.ping === 'function') {
+          const startTime = performance.now();
+          testIpcBtn.disabled = true;
+          testIpcBtn.style.opacity = '0.7';
+
+          try {
+            const response = await window.electronAPI.ping(Date.now());
+            const elapsed = Math.round(performance.now() - startTime);
+
+            if (response && response.success) {
+              if (latencyValEl) latencyValEl.textContent = `${elapsed}ms`;
+              showToast(`IPC Round-Trip: ${elapsed}ms (Channel: app:ping)`, 'success');
+            } else {
+              showToast(`IPC Rejected: ${response ? response.error : 'Access Denied'}`, 'danger');
+            }
+          } catch (err) {
+            console.error('[IPC Error] Ping invocation failed:', err);
+            showToast('IPC Request Failed', 'danger');
+          } finally {
+            testIpcBtn.disabled = false;
+            testIpcBtn.style.opacity = '1';
+          }
+        } else {
+          showToast('Preload IPC API unavailable', 'danger');
+        }
+      });
     }
   }
 
@@ -508,6 +558,7 @@
   // --- Initialization ---
   document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
+    setupIpcPingHandler();
     initializeTaskStore();
     loadSystemArchitectureDiagnostics();
   });

@@ -86,9 +86,32 @@
                 <p class="welcome-subtext" id="welcome-subtext">Organize your daily priorities and track productivity.</p>
               </div>
               <div class="milestone-pill">
-                <span>Milestone 4</span>
+                <span>Milestone 5</span>
                 <span class="pill-dot"></span>
-                <span>Persistent Storage</span>
+                <span>Secure IPC Bridge</span>
+              </div>
+            </div>
+
+            <!-- IPC System Status & Diagnostics Widget (Demonstrating Secure IPC on Dashboard) -->
+            <div class="ipc-status-card" id="dashboard-ipc-status">
+              <div class="ipc-card-header">
+                <div class="ipc-title-group">
+                  <span class="ipc-status-badge">⚡ IPC Active</span>
+                  <span class="ipc-app-name" id="dash-app-name">Desktop Productivity Manager</span>
+                  <span class="ipc-app-version" id="dash-app-version">v1.0.0</span>
+                </div>
+                <div class="ipc-actions-group">
+                  <span class="ipc-latency-pill" id="ipc-latency-pill">IPC Latency: <strong id="ipc-latency-val">--</strong></span>
+                  <button type="button" id="test-ipc-btn" class="btn btn-secondary btn-sm" title="Invoke IPC round-trip ping">
+                    <span>🔄 Test IPC Ping</span>
+                  </button>
+                </div>
+              </div>
+              <div class="ipc-meta-row">
+                <span class="ipc-meta-item">🖥️ Platform: <strong id="dash-platform">--</strong></span>
+                <span class="ipc-meta-item">📦 Electron: <strong id="dash-electron">--</strong></span>
+                <span class="ipc-meta-item">🟢 Node: <strong id="dash-node">--</strong></span>
+                <span class="ipc-meta-item">🛡️ Security: <strong class="badge-active">contextBridge (Isolated)</strong></span>
               </div>
             </div>
 
@@ -221,7 +244,7 @@
           <span id="footer-storage-note">Persistent Storage (userData)</span>
         </div>
         <div class="footer-right">
-          <span class="milestone-tag">Milestone 4: Persistent Storage</span>
+          <span class="milestone-tag">Milestone 5: Secure IPC Communication</span>
         </div>
       </footer>
     </div>

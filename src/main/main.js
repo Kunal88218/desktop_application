@@ -1,6 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const storage = require('./storage');
+const { registerIpcHandlers } = require('./ipc');
 
 // Global error handlers for main process
 process.on('uncaughtException', (error) => {
@@ -91,31 +91,8 @@ app.whenReady().then(() => {
   console.log('[Main Process] Electron application ready');
   console.log(`[Main Process] Platform: ${process.platform} (${process.arch}) | Node: ${process.versions.node} | Electron: ${process.versions.electron}`);
 
-  // IPC Handler for smoke test / system info
-  ipcMain.handle('app:get-info', () => {
-    return {
-      name: 'Desktop Productivity Manager',
-      version: '1.0.0',
-      platform: process.platform,
-      arch: process.arch,
-      nodeVersion: process.versions.node,
-      electronVersion: process.versions.electron,
-      isPackaged: app.isPackaged
-    };
-  });
-
-  // Persistent Storage IPC Handlers
-  ipcMain.handle('tasks:load', async () => {
-    return await storage.loadTasks();
-  });
-
-  ipcMain.handle('tasks:save', async (event, tasks) => {
-    return await storage.saveTasks(tasks);
-  });
-
-  ipcMain.handle('tasks:get-path', () => {
-    return storage.getStorageFilePath();
-  });
+  // Register secure IPC handlers with origin and payload validation
+  registerIpcHandlers();
 
   createMainWindow();
 
