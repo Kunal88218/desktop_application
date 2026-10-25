@@ -5,11 +5,14 @@ const { sendNotification } = require('./notifications');
 
 /**
  * Validates that an incoming IPC call originated from our own local application window.
- * Rejects requests from unauthorized or remote origins.
+ * Rejects requests from unauthorized or remote origins, or missing sender frames.
  */
 function isValidSender(event) {
-  if (!event || !event.senderFrame) return true;
-  const url = event.senderFrame.url;
+  if (!event || !event.senderFrame || typeof event.senderFrame.url !== 'string') {
+    console.warn('[Security Warning] Blocked IPC invocation: missing senderFrame or frame URL');
+    return false;
+  }
+  const url = event.senderFrame.url.trim();
   if (!url || (!url.startsWith('file://') && !url.startsWith('devtools://'))) {
     console.warn(`[Security Warning] Blocked IPC invocation from unauthorized origin: ${url}`);
     return false;
@@ -31,11 +34,12 @@ function broadcastTasksSync(tasks) {
 /**
  * Registers all application IPC handlers with sender validation and structured responses.
  */
-function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddWindow }) {
+function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddWindow }, customIpcMain = ipcMain) {
+  const targetIpc = customIpcMain || ipcMain;
   console.log('[IPC] Registering secure inter-process communication handlers...');
 
   // 1. System & App Metadata Handler
-  ipcMain.handle('app:get-info', (event) => {
+  targetIpc.handle('app:get-info', (event) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin' };
     }
@@ -55,7 +59,7 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
   });
 
   // 2. Diagnostic Ping / Latency Handler
-  ipcMain.handle('app:ping', (event, clientTimestamp) => {
+  targetIpc.handle('app:ping', (event, clientTimestamp) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin' };
     }
@@ -65,14 +69,14 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
       success: true,
       data: {
         serverTimestamp,
-        clientTimestamp: typeof clientTimestamp === 'number' ? clientTimestamp : null,
+        clientTimestamp: typeof clientTimestamp === 'number' && Number.isFinite(clientTimestamp) ? clientTimestamp : null,
         status: 'online'
       }
     };
   });
 
   // 3. Persistent Storage: Load Tasks
-  ipcMain.handle('tasks:load', async (event) => {
+  targetIpc.handle('tasks:load', async (event) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin', tasks: [] };
     }
@@ -82,7 +86,7 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
   });
 
   // 4. Persistent Storage: Save Tasks (with payload validation)
-  ipcMain.handle('tasks:save', async (event, tasks) => {
+  targetIpc.handle('tasks:save', async (event, tasks) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin' };
     }
@@ -94,7 +98,7 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
 
     console.log(`[IPC Request] tasks:save (${tasks.length} items)`);
     const result = await storage.saveTasks(tasks);
-    if (result.success) {
+    if (result && result.success) {
       // Broadcast to other windows if needed
       broadcastTasksSync(tasks);
     }
@@ -102,7 +106,7 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
   });
 
   // 5. Persistent Storage: Get Path
-  ipcMain.handle('tasks:get-path', (event) => {
+  targetIpc.handle('tasks:get-path', (event) => {
     if (!isValidSender(event)) {
       return null;
     }
@@ -111,22 +115,22 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
   });
 
   // 6. Native Dialogs: Export Tasks
-  ipcMain.handle('tasks:export-dialog', async (event) => {
+  targetIpc.handle('tasks:export-dialog', async (event) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin' };
     }
 
-    const callingWindow = BrowserWindow.fromWebContents(event.sender);
+    const callingWindow = BrowserWindow.fromWebContents ? BrowserWindow.fromWebContents(event.sender) : null;
     return await exportTasksDialog(callingWindow);
   });
 
   // 7. Native Dialogs: Import Tasks
-  ipcMain.handle('tasks:import-dialog', async (event) => {
+  targetIpc.handle('tasks:import-dialog', async (event) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin' };
     }
 
-    const callingWindow = BrowserWindow.fromWebContents(event.sender);
+    const callingWindow = BrowserWindow.fromWebContents ? BrowserWindow.fromWebContents(event.sender) : null;
     const result = await importTasksDialog(callingWindow);
     if (result && result.success && Array.isArray(result.tasks)) {
       broadcastTasksSync(result.tasks);
@@ -135,25 +139,33 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
   });
 
   // 8. Secondary Window: Open Quick Add Window
-  ipcMain.handle('window:open-quick-add', (event) => {
+  targetIpc.handle('window:open-quick-add', (event) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin' };
     }
 
     if (typeof openQuickAddWindow === 'function') {
-      openQuickAddWindow();
-      return { success: true };
+      try {
+        openQuickAddWindow();
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     }
     return { success: false, error: 'Window opener not configured' };
   });
 
   // 9. Secondary Window: Submit Quick Add Task
-  ipcMain.handle('tasks:quick-add', async (event, taskData) => {
+  targetIpc.handle('tasks:quick-add', async (event, taskData) => {
     if (!isValidSender(event)) {
       return { success: false, error: 'Unauthorized IPC origin' };
     }
 
-    if (!taskData || typeof taskData.title !== 'string' || !taskData.title.trim()) {
+    if (!taskData || typeof taskData !== 'object' || Array.isArray(taskData)) {
+      return { success: false, error: 'Task payload must be an object' };
+    }
+
+    if (typeof taskData.title !== 'string' || !taskData.title.trim()) {
       return { success: false, error: 'Task title is required' };
     }
 
@@ -161,12 +173,16 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
       const current = await storage.loadTasks();
       const existing = current.tasks || [];
 
+      const validPriorities = ['low', 'medium', 'high'];
+      const rawPriority = typeof taskData.priority === 'string' ? taskData.priority.toLowerCase().trim() : 'medium';
+      const priority = validPriorities.includes(rawPriority) ? rawPriority : 'medium';
+
       const newTask = {
-        id: `task-${Date.now()}`,
-        title: taskData.title.trim(),
-        description: typeof taskData.description === 'string' ? taskData.description.trim() : '',
-        priority: ['low', 'medium', 'high'].includes(taskData.priority) ? taskData.priority : 'medium',
-        dueDate: typeof taskData.dueDate === 'string' ? taskData.dueDate.trim() : '',
+        id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        title: taskData.title.trim().substring(0, 300),
+        description: typeof taskData.description === 'string' ? taskData.description.trim().substring(0, 2000) : '',
+        priority,
+        dueDate: typeof taskData.dueDate === 'string' ? taskData.dueDate.trim().substring(0, 50) : '',
         completed: false,
         createdAt: Date.now()
       };
@@ -200,19 +216,26 @@ function registerIpcHandlers({ getMainWindow, openQuickAddWindow, closeQuickAddW
   });
 
   // 10. Close Calling Window
-  ipcMain.handle('window:close-current', (event) => {
-    if (!isValidSender(event)) return;
-    const callingWindow = BrowserWindow.fromWebContents(event.sender);
+  targetIpc.handle('window:close-current', (event) => {
+    if (!isValidSender(event)) {
+      return { success: false, error: 'Unauthorized IPC origin' };
+    }
+    const callingWindow = BrowserWindow.fromWebContents ? BrowserWindow.fromWebContents(event.sender) : null;
     if (callingWindow && !callingWindow.isDestroyed()) {
       callingWindow.close();
+      return { success: true };
     }
+    return { success: false, error: 'Window not found' };
   });
 
   // 11. System Notifications
-  ipcMain.handle('notifications:send', (event, { title, body }) => {
+  targetIpc.handle('notifications:send', (event, payload) => {
     if (!isValidSender(event)) {
       return false;
     }
+
+    const title = payload && typeof payload.title === 'string' ? payload.title.trim().substring(0, 100) : 'Productivity Manager';
+    const body = payload && typeof payload.body === 'string' ? payload.body.trim().substring(0, 500) : '';
 
     return sendNotification({ title, body });
   });
