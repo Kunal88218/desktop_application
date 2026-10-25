@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "check:syntax": "node --check app.js src/main/*.js src/preload/*.js src/renderer/*.js test/*.js",
-    "test": "node test/storage.test.js && node test/ipc.test.js && node test/dialogs.test.js && node test/error-handling.test.js && node test/security-hardening.test.js && node test/smoke-check.js"
+    "test": "node test/storage.test.js && node test/ipc.test.js && node test/dialogs.test.js && node test/error-handling.test.js && node test/security-hardening.test.js && node test/smoke-check.js",
+    "dist": "electron-builder --mac --arm64"
   },
   "keywords": [
     "electron",
@@ -17,6 +18,30 @@
   "author": "Kunal88218",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^45.0.0"
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.kunal88218.desktop-productivity-manager",
+    "productName": "Desktop Productivity Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "app.js",
+      "package.json",
+      "src/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null
+    },
+    "dmg": {
+      "title": "${productName} ${version}"
+    }
   }
 }

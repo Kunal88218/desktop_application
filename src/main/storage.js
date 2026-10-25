@@ -43,7 +43,9 @@ const DEFAULT_TASKS = [
 ];
 
 function getStorageFilePath() {
-  const userDataPath = app ? app.getPath('userData') : path.join(__dirname, '../../data');
+  const userDataPath = (app && typeof app.getPath === 'function')
+    ? app.getPath('userData')
+    : path.join(__dirname, '../../data');
   return path.join(userDataPath, 'tasks.json');
 }
 
