@@ -127,6 +127,13 @@ function createQuickAddWindow() {
 
   quickAddWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
+  quickAddWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    if (!navigationUrl.startsWith('file://')) {
+      console.warn(`[Security Warning] Prevented external navigation in quick-add to: ${navigationUrl}`);
+      event.preventDefault();
+    }
+  });
+
   quickAddWindow.on('closed', () => {
     console.log('[Main Process] Quick Add window closed');
     quickAddWindow = null;
