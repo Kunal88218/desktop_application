@@ -58,12 +58,10 @@ function validateTasks(tasks) {
 
   const validPriorities = ['low', 'medium', 'high'];
   const sanitized = [];
+  const seenIds = new Set();
 
   for (const item of tasks) {
-    if (!item || typeof item !== 'object') continue;
-
-    // Validate ID
-    const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `task-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
 
     // Validate Title (required, string, non-empty, max 300 chars)
     if (typeof item.title !== 'string' || !item.title.trim()) {
@@ -71,12 +69,19 @@ function validateTasks(tasks) {
     }
     const title = item.title.trim().substring(0, 300);
 
+    // Validate ID (ensure non-empty string and unique within the collection)
+    let id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : null;
+    if (!id || seenIds.has(id)) {
+      id = `task-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    }
+    seenIds.add(id);
+
     // Validate Description
     const description = typeof item.description === 'string' ? item.description.trim().substring(0, 2000) : '';
 
     // Validate Priority
-    const priority = typeof item.priority === 'string' && validPriorities.includes(item.priority.toLowerCase())
-      ? item.priority.toLowerCase()
+    const priority = typeof item.priority === 'string' && validPriorities.includes(item.priority.toLowerCase().trim())
+      ? item.priority.toLowerCase().trim()
       : 'medium';
 
     // Validate Due Date
@@ -86,7 +91,9 @@ function validateTasks(tasks) {
     const completed = Boolean(item.completed);
 
     // Validate CreatedAt
-    const createdAt = typeof item.createdAt === 'number' && !isNaN(item.createdAt) ? item.createdAt : Date.now();
+    const createdAt = typeof item.createdAt === 'number' && Number.isFinite(item.createdAt) && item.createdAt > 0
+      ? item.createdAt
+      : Date.now();
 
     sanitized.push({
       id,

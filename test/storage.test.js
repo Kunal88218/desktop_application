@@ -8,14 +8,20 @@ console.log('[Test] Running Milestone 4 Unit Tests: Storage & Persistence...');
 
 // 1. Task Validation Tests
 (() => {
-  console.log('  Testing validateTasks() schema enforcement...');
+  console.log('  Testing validateTasks() schema enforcement and sanitization...');
 
-  // Non-array rejection
-  assert.throws(() => {
-    validateTasks('not an array');
-  }, /Invalid task list format/, 'Should reject non-array inputs');
+  // 1.1 Non-array input rejection
+  const invalidInputs = ['not an array', null, undefined, 12345, true, { tasks: [] }];
+  for (const invalid of invalidInputs) {
+    assert.throws(() => {
+      validateTasks(invalid);
+    }, /Invalid task list format/, `Should reject non-array input: ${typeof invalid}`);
+  }
 
-  // Valid tasks pass through
+  // 1.2 Empty array input
+  assert.deepStrictEqual(validateTasks([]), [], 'Empty array input should return empty array');
+
+  // 1.3 Valid task passes through unchanged
   const sample = [
     {
       id: 'task-100',
@@ -29,43 +35,129 @@ console.log('[Test] Running Milestone 4 Unit Tests: Storage & Persistence...');
   ];
   const validated = validateTasks(sample);
   assert.strictEqual(validated.length, 1);
+  assert.strictEqual(validated[0].id, 'task-100');
   assert.strictEqual(validated[0].title, 'Valid Task Title');
+  assert.strictEqual(validated[0].description, 'Some valid details');
   assert.strictEqual(validated[0].priority, 'high');
+  assert.strictEqual(validated[0].dueDate, '2026-10-30');
   assert.strictEqual(validated[0].completed, true);
+  assert.strictEqual(validated[0].createdAt, 1700000000000);
 
-  // Dropping invalid tasks (missing or empty title)
-  const invalidSamples = [
+  // 1.4 Dropping invalid task records (primitives, missing/empty title, nested arrays)
+  const malformedRecords = [
     null,
     undefined,
+    12345,
+    'just a string',
+    true,
+    ['nested array'],
     {},
     { title: '' },
     { title: '   ' },
-    { title: 12345 }
+    { title: null },
+    { title: 12345 },
+    { title: false },
+    { title: { text: 'Nested title' } },
+    { title: ['array title'] }
   ];
-  const filtered = validateTasks(invalidSamples);
-  assert.strictEqual(filtered.length, 0, 'Tasks without valid title must be dropped');
+  const filtered = validateTasks(malformedRecords);
+  assert.strictEqual(filtered.length, 0, 'Malformed records or tasks without valid string title must be dropped');
 
-  // Priority fallback to medium
+  // 1.5 Missing optional fields receive safe defaults
+  const minimalTask = [{ title: 'Minimal Task' }];
+  const sanitizedMinimal = validateTasks(minimalTask);
+  assert.strictEqual(sanitizedMinimal.length, 1);
+  assert(sanitizedMinimal[0].id.startsWith('task-'), 'Generated ID should have task- prefix');
+  assert.strictEqual(sanitizedMinimal[0].title, 'Minimal Task');
+  assert.strictEqual(sanitizedMinimal[0].description, '');
+  assert.strictEqual(sanitizedMinimal[0].priority, 'medium');
+  assert.strictEqual(sanitizedMinimal[0].dueDate, '');
+  assert.strictEqual(sanitizedMinimal[0].completed, false);
+  assert(typeof sanitizedMinimal[0].createdAt === 'number' && sanitizedMinimal[0].createdAt > 0);
+
+  // 1.6 Priority validation, fallback, and normalization
   const priorityTest = validateTasks([
-    { title: 'Test 1', priority: 'INVALID_PRIORITY' },
-    { title: 'Test 2', priority: 'low' },
-    { title: 'Test 3', priority: 'HIGH' }
+    { title: 'T1', priority: 'INVALID_PRIORITY' },
+    { title: 'T2', priority: 'low' },
+    { title: 'T3', priority: 'HIGH' },
+    { title: 'T4', priority: ' Medium ' },
+    { title: 'T5', priority: 123 },
+    { title: 'T6', priority: null },
+    { title: 'T7', priority: 'urgent' },
+    { title: 'T8', priority: 'critical' }
   ]);
-  assert.strictEqual(priorityTest[0].priority, 'medium', 'Invalid priority should fall back to medium');
-  assert.strictEqual(priorityTest[1].priority, 'low');
-  assert.strictEqual(priorityTest[2].priority, 'high');
+  assert.strictEqual(priorityTest[0].priority, 'medium', 'Invalid string priority should fall back to medium');
+  assert.strictEqual(priorityTest[1].priority, 'low', 'lowercase low should be accepted');
+  assert.strictEqual(priorityTest[2].priority, 'high', 'uppercase HIGH should be normalized to high');
+  assert.strictEqual(priorityTest[3].priority, 'medium', 'whitespace padded Medium should be trimmed to medium');
+  assert.strictEqual(priorityTest[4].priority, 'medium', 'Numeric priority should fall back to medium');
+  assert.strictEqual(priorityTest[5].priority, 'medium', 'null priority should fall back to medium');
+  assert.strictEqual(priorityTest[6].priority, 'medium', 'unsupported priority "urgent" should fall back to medium');
+  assert.strictEqual(priorityTest[7].priority, 'medium', 'unsupported priority "critical" should fall back to medium');
 
-  // Completed coercion
+  // 1.7 Completed boolean coercion
   const boolTest = validateTasks([
     { title: 'Bool 1', completed: 1 },
     { title: 'Bool 2', completed: 0 },
-    { title: 'Bool 3', completed: 'yes' }
+    { title: 'Bool 3', completed: 'yes' },
+    { title: 'Bool 4', completed: false },
+    { title: 'Bool 5', completed: true },
+    { title: 'Bool 6', completed: null },
+    { title: 'Bool 7', completed: undefined }
   ]);
   assert.strictEqual(boolTest[0].completed, true);
   assert.strictEqual(boolTest[1].completed, false);
   assert.strictEqual(boolTest[2].completed, true);
+  assert.strictEqual(boolTest[3].completed, false);
+  assert.strictEqual(boolTest[4].completed, true);
+  assert.strictEqual(boolTest[5].completed, false);
+  assert.strictEqual(boolTest[6].completed, false);
 
-  console.log('  ✓ validateTasks() passes all schema and sanitization checks');
+  // 1.8 Duplicate ID handling
+  const duplicateIdTasks = [
+    { id: 'dup-id', title: 'First Task' },
+    { id: 'dup-id', title: 'Second Task' },
+    { id: 'dup-id', title: 'Third Task' }
+  ];
+  const deduplicated = validateTasks(duplicateIdTasks);
+  assert.strictEqual(deduplicated.length, 3, 'All tasks should be preserved');
+  assert.strictEqual(deduplicated[0].id, 'dup-id', 'First task keeps its original ID');
+  assert.notStrictEqual(deduplicated[1].id, 'dup-id', 'Second duplicate task receives new ID');
+  assert.notStrictEqual(deduplicated[2].id, 'dup-id', 'Third duplicate task receives new ID');
+  assert.notStrictEqual(deduplicated[1].id, deduplicated[2].id, 'Regenerated IDs must be distinct');
+  const uniqueIds = new Set(deduplicated.map(t => t.id));
+  assert.strictEqual(uniqueIds.size, 3, 'All resulting task IDs must be unique');
+
+  // 1.9 Invalid field types for description, dueDate, createdAt
+  const invalidFieldTypes = [
+    {
+      title: 'Type Checking Task',
+      description: { not: 'a string' },
+      dueDate: 20261025,
+      createdAt: 'invalid-date'
+    }
+  ];
+  const sanitizedTypes = validateTasks(invalidFieldTypes);
+  assert.strictEqual(sanitizedTypes[0].description, '', 'Non-string description should default to empty string');
+  assert.strictEqual(sanitizedTypes[0].dueDate, '', 'Non-string dueDate should default to empty string');
+  assert(typeof sanitizedTypes[0].createdAt === 'number' && Number.isFinite(sanitizedTypes[0].createdAt), 'Invalid createdAt should default to current timestamp');
+
+  // 1.10 Field length clipping / bounds protection
+  const longTitle = 'A'.repeat(500);
+  const longDesc = 'B'.repeat(3000);
+  const longDueDate = '2026-10-25' + 'C'.repeat(100);
+  const clipped = validateTasks([
+    {
+      title: longTitle,
+      description: longDesc,
+      dueDate: longDueDate
+    }
+  ]);
+  assert.strictEqual(clipped[0].title.length, 300, 'Title must be capped at 300 chars');
+  assert.strictEqual(clipped[0].description.length, 2000, 'Description must be capped at 2000 chars');
+  assert.strictEqual(clipped[0].dueDate.length, 50, 'DueDate must be capped at 50 chars');
+
+  console.log('  ✓ validateTasks() passes all schema, edge cases, and sanitization checks');
 })();
 
 // 2. Storage File I/O & Atomic Write Simulation Tests
