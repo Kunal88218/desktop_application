@@ -5,6 +5,7 @@
   "main": "app.js",
   "scripts": {
     "start": "electron .",
+    "check:syntax": "node --check app.js src/main/*.js src/preload/*.js src/renderer/*.js test/*.js",
     "test": "node test/storage.test.js && node test/ipc.test.js && node test/dialogs.test.js && node test/error-handling.test.js && node test/security-hardening.test.js && node test/smoke-check.js"
   },
   "keywords": [
