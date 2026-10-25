@@ -6,10 +6,11 @@ const { sendNotification } = require('./notifications');
 /**
  * Prompts user to select destination file and exports tasks as structured JSON.
  */
-async function exportTasksDialog(browserWindow) {
+async function exportTasksDialog(browserWindow, customDialog = null) {
+  const dlg = customDialog || dialog;
   try {
     const defaultName = `productivity-tasks-${new Date().toISOString().split('T')[0]}.json`;
-    const { canceled, filePath } = await dialog.showSaveDialog(browserWindow, {
+    const { canceled, filePath } = await dlg.showSaveDialog(browserWindow, {
       title: 'Export Tasks',
       defaultPath: defaultName,
       filters: [
@@ -54,9 +55,10 @@ async function exportTasksDialog(browserWindow) {
 /**
  * Prompts user to choose a JSON file and imports tasks, merging them with existing tasks.
  */
-async function importTasksDialog(browserWindow) {
+async function importTasksDialog(browserWindow, customDialog = null) {
+  const dlg = customDialog || dialog;
   try {
-    const { canceled, filePaths } = await dialog.showOpenDialog(browserWindow, {
+    const { canceled, filePaths } = await dlg.showOpenDialog(browserWindow, {
       title: 'Import Tasks',
       properties: ['openFile'],
       filters: [

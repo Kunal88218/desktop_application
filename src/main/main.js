@@ -188,3 +188,9 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+module.exports = {
+  createMainWindow,
+  createQuickAddWindow,
+  closeQuickAddWindow
+};

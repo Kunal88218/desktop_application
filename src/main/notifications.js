@@ -4,20 +4,23 @@ const { Notification, app } = require('electron');
  * Sends a native desktop notification if supported by the OS environment.
  * Safely handles environments where notifications are unavailable or permissions are denied.
  */
-function sendNotification({ title, body, silent = false }) {
+function sendNotification({ title, body, silent = false }, CustomNotification = null) {
+  const NotifClass = CustomNotification || Notification;
   try {
-    if (!Notification.isSupported()) {
+    if (!NotifClass || (typeof NotifClass.isSupported === 'function' && !NotifClass.isSupported())) {
       console.log(`[Notification Fallback] Notifications not supported: ${title} - ${body}`);
       return false;
     }
 
-    const notification = new Notification({
+    const notification = new NotifClass({
       title: title || 'Productivity Manager',
       body: body || '',
       silent: Boolean(silent)
     });
 
-    notification.show();
+    if (typeof notification.show === 'function') {
+      notification.show();
+    }
     console.log(`[Notification] Displayed: "${title}" - "${body}"`);
     return true;
   } catch (err) {

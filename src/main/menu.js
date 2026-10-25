@@ -3,15 +3,16 @@ const { Menu, app, dialog } = require('electron');
 /**
  * Builds and sets the native desktop application menu.
  */
-function setupApplicationMenu({ onQuickAdd, onExport, onImport }) {
+function setupApplicationMenu({ onQuickAdd, onExport, onImport }, customMenu = null) {
   const isMac = process.platform === 'darwin';
+  const appName = (app && app.name) ? app.name : 'Desktop Productivity Manager';
 
   const template = [
     // macOS Application Menu
     ...(isMac
       ? [
           {
-            label: app.name,
+            label: appName,
             submenu: [
               { role: 'about' },
               { type: 'separator' },
@@ -124,9 +125,15 @@ function setupApplicationMenu({ onQuickAdd, onExport, onImport }) {
     }
   ];
 
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
-  return menu;
+  const MenuClass = customMenu || Menu;
+  if (MenuClass && typeof MenuClass.buildFromTemplate === 'function') {
+    const menu = MenuClass.buildFromTemplate(template);
+    if (typeof MenuClass.setApplicationMenu === 'function') {
+      MenuClass.setApplicationMenu(menu);
+    }
+    return menu;
+  }
+  return template;
 }
 
 module.exports = {
