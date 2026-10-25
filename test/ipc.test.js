@@ -10,7 +10,7 @@ console.log('[Test] Running Milestone 5 & 7 Secure IPC Communication Tests...');
   // Valid local application origins
   const validLocalEvent = {
     senderFrame: {
-      url: 'file:///Users/kunalsingh/Desktop/Desktop_app/src/renderer/index.html'
+      url: 'file:///app/src/renderer/index.html'
     }
   };
   assert.strictEqual(isValidSender(validLocalEvent), true, 'Local file:// URLs must be authorized');

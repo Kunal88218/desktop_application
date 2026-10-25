@@ -20,3 +20,12 @@ yarn-error.log*
 data/
 *.local
 .env
+*.tmp
+*.tmp.*
+
+# Editor and IDE metadata
+.vscode/
+.idea/
+
+# Coverage and test artifacts
+coverage/

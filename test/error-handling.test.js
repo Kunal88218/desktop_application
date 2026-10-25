@@ -8,9 +8,9 @@ console.log('[Test] Running Milestone 7 User-Facing Error Handling Tests...');
   console.log('  Testing error sanitization and privacy protection...');
 
   // 1.1 Stripping absolute Unix paths
-  const unixError = "ENOENT: no such file or directory, open '/Users/kunalsingh/Desktop/Desktop_app/data/tasks.json'";
+  const unixError = "ENOENT: no such file or directory, open '/home/user/desktop-app/data/tasks.json'";
   const cleanedUnix = sanitizeUserErrorMessage(unixError);
-  assert(!cleanedUnix.includes('/Users/kunalsingh'), 'Private Unix paths must not appear in user error message');
+  assert(!cleanedUnix.includes('/home/user'), 'Private Unix paths must not appear in user error message');
   assert(!cleanedUnix.includes('ENOENT'), 'Raw OS error code must be stripped');
 
   // 1.2 Stripping absolute Windows paths
