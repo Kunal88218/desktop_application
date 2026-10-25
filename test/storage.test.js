@@ -2,9 +2,9 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { validateTasks, DEFAULT_TASKS } = require('../src/main/storage');
+const { validateTasks, loadTasks, saveTasks, DEFAULT_TASKS } = require('../src/main/storage');
 
-console.log('[Test] Running Milestone 4 Unit Tests: Storage & Persistence...');
+console.log('[Test] Running Milestone 4 & 7 Storage & Persistence Tests...');
 
 // 1. Task Validation Tests
 (() => {
@@ -160,50 +160,89 @@ console.log('[Test] Running Milestone 4 Unit Tests: Storage & Persistence...');
   console.log('  ✓ validateTasks() passes all schema, edge cases, and sanitization checks');
 })();
 
-// 2. Storage File I/O & Atomic Write Simulation Tests
+// 2. Storage File I/O, Failure Handling, and Recovery Tests
 (async () => {
   console.log('  Testing storage file reading, atomic writing, and error recovery...');
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prod-mgr-test-'));
-  const testFile = path.join(tempDir, 'test-tasks.json');
-  const tempFile = `${testFile}.tmp`;
 
   try {
-    // Atomic Write test
-    const tasksToWrite = [
-      { id: 't-1', title: 'Persisted Task', priority: 'high', completed: false }
+    // 2.1 First-run initialization when file is missing
+    const missingFile = path.join(tempDir, 'nonexistent-tasks.json');
+    const initRes = await loadTasks(missingFile);
+    assert.strictEqual(initRes.success, true, 'First-run should succeed');
+    assert.strictEqual(initRes.isInitialSeed, true, 'First-run should report isInitialSeed');
+    assert.strictEqual(initRes.tasks.length, DEFAULT_TASKS.length, 'First-run should seed DEFAULT_TASKS');
+    assert(fs.existsSync(missingFile), 'First-run should create file on disk');
+
+    // 2.2 Atomic write persists valid tasks cleanly
+    const sampleTasks = [
+      { id: 't-1', title: 'Atomic Task 1', priority: 'high', completed: false },
+      { id: 't-2', title: 'Atomic Task 2', priority: 'low', completed: true }
     ];
-    const validated = validateTasks(tasksToWrite);
-    fs.writeFileSync(tempFile, JSON.stringify(validated, null, 2), 'utf8');
-    fs.renameSync(tempFile, testFile);
+    const saveRes = await saveTasks(sampleTasks, missingFile);
+    assert.strictEqual(saveRes.success, true, 'saveTasks should succeed');
+    assert.strictEqual(saveRes.count, 2, 'saveTasks should report count');
+    assert(!fs.existsSync(`${missingFile}.tmp`), 'Temporary file should be removed after rename');
 
-    assert(fs.existsSync(testFile), 'Target file should exist after rename');
-    const readContent = JSON.parse(fs.readFileSync(testFile, 'utf8'));
-    assert.strictEqual(readContent.length, 1);
-    assert.strictEqual(readContent[0].title, 'Persisted Task');
+    // Read back through loadTasks
+    const loadRes = await loadTasks(missingFile);
+    assert.strictEqual(loadRes.success, true);
+    assert.strictEqual(loadRes.tasks.length, 2);
+    assert.strictEqual(loadRes.tasks[0].title, 'Atomic Task 1');
 
-    // Corrupted file recovery test
-    fs.writeFileSync(testFile, '{{INVALID_JSON_CORRUPTED_DATA', 'utf8');
-    let loadedData;
-    try {
-      const raw = fs.readFileSync(testFile, 'utf8');
-      loadedData = JSON.parse(raw);
-    } catch (err) {
-      // Fallback
-      loadedData = DEFAULT_TASKS;
-    }
-    assert(Array.isArray(loadedData), 'Corrupted JSON should safely trigger fallback');
-    assert.strictEqual(loadedData.length, DEFAULT_TASKS.length);
+    // 2.3 Empty storage file handling
+    const emptyFile = path.join(tempDir, 'empty-tasks.json');
+    fs.writeFileSync(emptyFile, '   \n  ', 'utf8');
+    const emptyRes = await loadTasks(emptyFile);
+    assert.strictEqual(emptyRes.success, true);
+    assert.deepStrictEqual(emptyRes.tasks, [], 'Empty file should safely return empty array');
 
-    console.log('  ✓ Storage read/write and corruption fallback verified');
+    // 2.4 Corrupted JSON recovery (does not crash or destroy the file)
+    const corruptedFile = path.join(tempDir, 'corrupted-tasks.json');
+    const corruptedContent = '{"tasks": [BROKEN_JSON_SYNTAX...';
+    fs.writeFileSync(corruptedFile, corruptedContent, 'utf8');
+
+    const corruptRes = await loadTasks(corruptedFile);
+    assert.strictEqual(corruptRes.success, false, 'Corrupted JSON should return failure flag');
+    assert(corruptRes.error.includes('corrupted'), 'Error should indicate file was corrupted');
+    assert.strictEqual(corruptRes.tasks.length, DEFAULT_TASKS.length, 'Should provide DEFAULT_TASKS fallback');
+    // Ensure the corrupted file was NOT overwritten or destroyed
+    const contentAfterCorruptRead = fs.readFileSync(corruptedFile, 'utf8');
+    assert.strictEqual(contentAfterCorruptRead, corruptedContent, 'Corrupted file must be preserved intact for forensics');
+
+    // 2.5 Invalid stored data structure (valid JSON, but not an array)
+    const invalidStructFile = path.join(tempDir, 'invalid-struct-tasks.json');
+    fs.writeFileSync(invalidStructFile, JSON.stringify({ invalid: 'object' }), 'utf8');
+
+    const invalidStructRes = await loadTasks(invalidStructFile);
+    assert.strictEqual(invalidStructRes.success, false, 'Non-array JSON should return failure flag');
+    assert(invalidStructRes.error.includes('invalid'), 'Error should describe invalid format');
+    assert.strictEqual(invalidStructRes.tasks.length, DEFAULT_TASKS.length, 'Should fallback to default tasks');
+
+    // 2.6 Failed save does not overwrite existing file or leave tmp artifacts
+    const preSaveContent = fs.readFileSync(missingFile, 'utf8');
+    const invalidSaveRes = await saveTasks('invalid-non-array-payload', missingFile);
+    assert.strictEqual(invalidSaveRes.success, false, 'Invalid save payload should fail');
+    assert(invalidSaveRes.error.includes('Invalid task list format'), 'Error should explain validation failure');
+    // Ensure pre-existing valid file is unmodified
+    const postSaveContent = fs.readFileSync(missingFile, 'utf8');
+    assert.strictEqual(postSaveContent, preSaveContent, 'Existing file must not be modified when save fails');
+    assert(!fs.existsSync(`${missingFile}.tmp`), 'Temporary .tmp file must be cleaned up on failure');
+
+    // 2.7 Auto-creation of nested directory path
+    const nestedFile = path.join(tempDir, 'sub', 'folder', 'tasks.json');
+    const nestedSaveRes = await saveTasks(sampleTasks, nestedFile);
+    assert.strictEqual(nestedSaveRes.success, true, 'saveTasks should automatically create parent directories');
+    assert(fs.existsSync(nestedFile), 'Nested file should be created');
+
+    console.log('  ✓ Storage read/write, failure handling, and recovery verified');
   } finally {
-    // Clean up temp directory
+    // Clean up temporary directory
     try {
-      if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
-      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-      fs.rmdirSync(tempDir);
+      fs.rmSync(tempDir, { recursive: true, force: true });
     } catch (_) {}
   }
 
-  console.log('\n[Test Passed] All Milestone 4 persistence unit tests passed cleanly.\n');
+  console.log('\n[Test Passed] All Milestone 4 & 7 persistence and recovery tests passed cleanly.\n');
 })();

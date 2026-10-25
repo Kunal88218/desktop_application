@@ -110,17 +110,17 @@ function validateTasks(tasks) {
 }
 
 /**
- * Loads tasks from the application user data directory.
+ * Loads tasks from the application user data directory (or specified file path).
  * Falls back to default initial tasks if the file does not exist.
  * Protects against corrupted JSON without crashing.
  */
-async function loadTasks() {
-  const filePath = getStorageFilePath();
+async function loadTasks(customFilePath = null) {
+  const filePath = customFilePath || getStorageFilePath();
 
   try {
     if (!fs.existsSync(filePath)) {
       console.log(`[Storage] No existing task store found at ${filePath}. Initializing with default seed tasks.`);
-      await saveTasks(DEFAULT_TASKS);
+      await saveTasks(DEFAULT_TASKS, filePath);
       return { success: true, tasks: DEFAULT_TASKS, isInitialSeed: true };
     }
 
@@ -143,6 +143,15 @@ async function loadTasks() {
       };
     }
 
+    if (!Array.isArray(parsed)) {
+      console.error('[Storage Error] Task storage content is not an array.');
+      return {
+        success: false,
+        error: 'Task data file format is invalid. Loaded emergency backup.',
+        tasks: DEFAULT_TASKS
+      };
+    }
+
     const validated = validateTasks(parsed);
     console.log(`[Storage] Loaded ${validated.length} tasks from ${filePath}`);
     return { success: true, tasks: validated };
@@ -153,11 +162,11 @@ async function loadTasks() {
 }
 
 /**
- * Saves tasks to the application user data directory using atomic write.
+ * Saves tasks to the application user data directory (or specified file path) using atomic write.
  * Writes to a temporary file first, then renames to avoid partial-write corruptions.
  */
-async function saveTasks(tasks) {
-  const filePath = getStorageFilePath();
+async function saveTasks(tasks, customFilePath = null) {
+  const filePath = customFilePath || getStorageFilePath();
   const tempPath = `${filePath}.tmp`;
 
   try {
