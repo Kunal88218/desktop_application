@@ -68,13 +68,57 @@
       .replace(/'/g, '&#039;');
   }
 
+  function sanitizeUserError(rawError, fallback = 'An unexpected error occurred.') {
+    if (!rawError) return fallback;
+    const str = (typeof rawError === 'string' ? rawError : (rawError.message || String(rawError))).trim();
+
+    if (/is not valid JSON|Unexpected token|JSON\.parse/i.test(str)) {
+      return 'The selected file contains invalid or corrupted JSON data.';
+    }
+    if (/does not contain a valid tasks array/i.test(str)) {
+      return 'The selected file does not contain a valid tasks list.';
+    }
+    if (/No valid tasks could be extracted/i.test(str)) {
+      return 'No valid tasks could be found in the imported file.';
+    }
+    if (/corrupted/i.test(str)) {
+      return 'Task data was corrupted. Safe backup tasks loaded.';
+    }
+    if (/ENOENT|no such file/i.test(str)) {
+      return 'The requested file or destination could not be found.';
+    }
+    if (/EACCES|EPERM|permission denied/i.test(str)) {
+      return 'Access was denied. Please check file permissions.';
+    }
+    if (/Invalid task list format/i.test(str)) {
+      return 'Invalid data format: tasks must be provided as a list.';
+    }
+
+    let cleaned = str.replace(/(?:\/[a-zA-Z0-9._-]+)+/g, '[file]');
+    cleaned = cleaned.replace(/[a-zA-Z]:\\[a-zA-Z0-9._\-\\]+/g, '[file]');
+    cleaned = cleaned.replace(/^[A-Z0-9_]+:\s*/i, '');
+    cleaned = cleaned.split('\n')[0].trim();
+    return cleaned || fallback;
+  }
+
+  let lastToastMessage = '';
+  let lastToastTime = 0;
+
   function showToast(message, type = 'info') {
+    const now = Date.now();
+    if (message === lastToastMessage && now - lastToastTime < 1500) {
+      return; // Deduplicate repeated identical toasts
+    }
+    lastToastMessage = message;
+    lastToastTime = now;
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     
     let icon = 'ℹ️';
     if (type === 'success') icon = '✓';
     if (type === 'danger') icon = '✕';
+    if (type === 'warning') icon = '⚠️';
 
     toast.innerHTML = `<span>${icon}</span><span>${escapeHTML(message)}</span>`;
     toastContainer.appendChild(toast);
@@ -214,11 +258,11 @@
         const result = await window.electronAPI.saveTasks(tasks);
         if (!result || !result.success) {
           console.error('[Storage Error] Failed to persist tasks:', result ? result.error : 'Unknown error');
-          showToast('Warning: Failed to save changes to disk', 'danger');
+          showToast(sanitizeUserError(result ? result.error : null, 'Warning: Failed to save changes to disk'), 'danger');
         }
       } catch (err) {
         console.error('[Storage Error] Exception during saveTasks:', err);
-        showToast('Storage error', 'danger');
+        showToast(sanitizeUserError(err, 'Unable to persist task changes to disk.'), 'danger');
       }
     }
   }
@@ -413,11 +457,11 @@
             if (res && res.success) {
               showToast(`Exported ${res.count} tasks successfully`, 'success');
             } else if (res && !res.canceled) {
-              showToast(`Export failed: ${res.error || 'Unknown error'}`, 'danger');
+              showToast(`Export failed: ${sanitizeUserError(res.error, 'Export operation could not be completed.')}`, 'danger');
             }
           } catch (err) {
             console.error('Export error:', err);
-            showToast('Export failed', 'danger');
+            showToast(sanitizeUserError(err, 'Export operation encountered an error.'), 'danger');
           } finally {
             exportBtn.disabled = false;
           }
@@ -437,11 +481,11 @@
               renderTasks();
               showToast(`Imported ${res.importedCount} tasks (${res.totalCount} total)`, 'success');
             } else if (res && !res.canceled) {
-              showToast(`Import error: ${res.error || 'Invalid file'}`, 'danger');
+              showToast(`Import error: ${sanitizeUserError(res.error, 'Invalid file')}`, 'danger');
             }
           } catch (err) {
             console.error('Import error:', err);
-            showToast('Import error', 'danger');
+            showToast(sanitizeUserError(err, 'Import operation encountered an error.'), 'danger');
           } finally {
             importBtn.disabled = false;
           }
@@ -605,12 +649,16 @@
           console.log(`[Renderer] Loaded ${tasks.length} persistent tasks from main process`);
         } else {
           console.warn('[Renderer] Storage load warning:', res ? res.error : 'No response');
+          if (res && res.error) {
+            showToast(sanitizeUserError(res.error, 'Loaded backup tasks due to a storage issue.'), 'warning');
+          }
           if (res && Array.isArray(res.tasks)) {
             tasks = res.tasks;
           }
         }
       } catch (err) {
         console.error('[Renderer] Error invoking loadTasks IPC:', err);
+        showToast('Unable to connect to task storage', 'danger');
       }
     }
 
